@@ -24,6 +24,12 @@ async function bootstrap() {
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
   // GrpcExceptionFilter is now provided globally via APP_FILTER in MetricsModule
 
+  app.enableCors({
+    origin: configService.get<string>('CORS_ORIGIN'),
+    methods: (configService.get<string>('CORS_METHODS') || '').split(','),
+    credentials: true,
+  });
+
   const config = new DocumentBuilder()
     .setTitle('API Gateway')
     .setDescription('API for CoffeeDoor Gateway Service')

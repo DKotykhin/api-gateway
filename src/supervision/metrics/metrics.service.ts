@@ -13,7 +13,7 @@ import {
 
 export type GrpcStatus = 'success' | 'error';
 export type ErrorType = 'grpc_error' | 'http_error' | 'validation_error' | 'auth_error' | 'internal_error';
-export type AuthOperation = 'signup' | 'signin' | 'verify_email' | 'refresh_tokens' | 'reset_password';
+export type AuthOperation = 'signup' | 'signin' | 'verify_email' | 'refresh_tokens' | 'reset_password' | 'oauth_signin';
 export type AuthResult = 'success' | 'failure';
 
 @Injectable()

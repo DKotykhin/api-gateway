@@ -1,7 +1,9 @@
 import {
   Body,
   Controller,
+  Get,
   Logger,
+  NotFoundException,
   Post,
   Query,
   Req,
@@ -10,11 +12,13 @@ import {
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
+import { AuthGuard } from '@nestjs/passport';
 import { ApiBody, ApiOperation, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { ConfigService } from '@nestjs/config';
-import { Observable } from 'rxjs';
+import * as crypto from 'crypto';
+import { Observable, firstValueFrom } from 'rxjs';
 import { map, tap } from 'rxjs/operators';
-import { Request, Response } from 'express';
+import type { Request, Response } from 'express';
 
 import { SerializeInterceptor } from 'src/utils/serialize.interceptor';
 import { PasswordRequestDto, UserResponseDto } from 'src/common/dto';
@@ -29,6 +33,10 @@ import type { StatusResponse } from 'src/generated-types/user';
 @Controller('auth')
 export class AuthController {
   private readonly logger = new Logger(AuthController.name);
+  // Short-lived one-time codes that the frontend exchanges for the real access token.
+  // TTL is 60 s. NOTE: use a shared Redis store if running multiple api-gateway instances.
+  private readonly oauthCodes = new Map<string, { accessToken: string; expiresAt: number }>();
+
   constructor(
     private readonly authService: AuthService,
     private readonly configService: ConfigService,
@@ -222,6 +230,80 @@ export class AuthController {
   ): Observable<StatusResponse> {
     this.logger.log('Received request to set new password');
     return this.authService.setNewPassword(token, password);
+  }
+
+  // Google OAuth - Initiate
+  @Get('google')
+  @UseGuards(AuthGuard('google'))
+  @ApiOperation({
+    summary: 'Google OAuth Login',
+    description: 'Redirects the user to Google for authentication',
+  })
+  @ApiResponse({ status: 302, description: 'Redirects to Google OAuth consent screen' })
+  public googleLogin(): void {
+    // Passport redirects to Google automatically
+  }
+
+  // Google OAuth - Callback
+  @Get('google/callback')
+  @UseGuards(AuthGuard('google'))
+  @ApiOperation({
+    summary: 'Google OAuth Callback',
+    description: 'Handles the callback from Google after authentication',
+  })
+  @ApiResponse({ status: 302, description: 'Redirects to frontend with a one-time exchange code' })
+  public async googleCallback(@Req() req: Request, @Res() res: Response): Promise<void> {
+    const frontendUrl = this.configService.getOrThrow<string>('FRONTEND_URL');
+    try {
+      const profile = req['user'] as {
+        provider: string;
+        providerId: string;
+        email?: string;
+        name?: string;
+        avatarUrl?: string | null;
+        accessToken: string;
+        refreshToken?: string | null;
+      };
+      this.logger.debug(
+        `Google OAuth callback received for provider ID: ${profile.providerId}, email: ${profile.email}, name: ${profile.name}`,
+      );
+      const clientInfo = {
+        ipAddress: this.getClientIp(req),
+        userAgent: req.headers['user-agent'] || 'Unknown',
+      };
+      const response = await firstValueFrom(this.authService.oauthSignIn({ ...profile, clientInfo }));
+      this.setRefreshTokenCookie(res, response.refreshToken);
+
+      // Store the access token behind a short-lived one-time code so it never
+      // travels as a URL query param (avoids server logs / Referer leakage).
+      const code = crypto.randomBytes(16).toString('hex');
+      this.oauthCodes.set(code, { accessToken: response.accessToken, expiresAt: Date.now() + 60_000 });
+      setTimeout(() => this.oauthCodes.delete(code), 60_000);
+
+      res.redirect(`${frontendUrl}/oauth/callback?code=${code}`);
+    } catch (error) {
+      this.logger.error(`Google OAuth callback failed: ${error instanceof Error ? error.message : error}`);
+      res.redirect(`${frontendUrl}/oauth/error`);
+    }
+  }
+
+  // Google OAuth - Exchange one-time code for access token
+  @Get('exchange-code')
+  @ApiOperation({
+    summary: 'Exchange OAuth Code',
+    description: 'Exchanges a short-lived one-time code (issued after Google OAuth) for the access token',
+  })
+  @ApiQuery({ name: 'code', required: true, description: 'One-time OAuth exchange code' })
+  @ApiResponse({ status: 200, description: 'Returns the access token' })
+  @ApiResponse({ status: 404, description: 'Code not found or expired' })
+  public exchangeOAuthCode(@Query('code') code: string): { accessToken: string } {
+    const entry = this.oauthCodes.get(code);
+    if (!entry || Date.now() > entry.expiresAt) {
+      this.oauthCodes.delete(code);
+      throw new NotFoundException('OAuth code not found or expired');
+    }
+    this.oauthCodes.delete(code);
+    return { accessToken: entry.accessToken };
   }
 
   // Sign out Current Device

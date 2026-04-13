@@ -7,7 +7,8 @@ import { NestFactory } from '@nestjs/core';
 import { Logger, ValidationPipe } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { ConfigService } from '@nestjs/config';
-import * as cookieParser from 'cookie-parser';
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const cookieParser = require('cookie-parser') as (secret?: string) => unknown;
 
 import { AppModule } from './app.module';
 

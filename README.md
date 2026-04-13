@@ -140,6 +140,9 @@ docker-compose up
 | POST | `/auth/logout-current-device` | JWT | Clear refresh token | Sign out current session |
 | POST | `/auth/logout-other-devices` | JWT | Sign out all other sessions |
 | POST | `/auth/logout-all-devices` | JWT | Sign out all sessions |
+| GET | `/auth/google` | No | Redirect to Google OAuth consent screen |
+| GET | `/auth/google/callback` | No | Google OAuth callback (internal — handled by Passport) |
+| GET | `/auth/exchange-code?code=` | No | Exchange one-time code for access token |
 
 ### User (`/user`)
 
@@ -264,6 +267,64 @@ docker-compose up
 ### JWT Strategy
 - Access tokens via `Authorization: Bearer <token>` header
 - Refresh tokens via HTTP-only cookies
+
+### Google OAuth Flow
+
+The OAuth flow uses a short-lived one-time code pattern to avoid exposing the access token in URL query parameters (prevents server log / Referer leakage).
+
+```
+Browser                    API Gateway               Google               User Microservice
+   │                           │                        │                        │
+   │  GET /auth/google         │                        │                        │
+   │──────────────────────────►│                        │                        │
+   │                           │  Redirect to Google    │                        │
+   │◄──────────────────────────│  (HMAC-signed state)   │                        │
+   │                           │                        │                        │
+   │  User consents            │                        │                        │
+   │────────────────────────────────────────────────-──►│                        │
+   │                           │                        │                        │
+   │  GET /auth/google/callback?code=...&state=...      │                        │
+   │──────────────────────────►│                        │                        │
+   │                           │  Verify HMAC state     │                        │
+   │                           │  Exchange code         │                        │
+   │                           │────────────────────-─► │                        │
+   │                           │  ◄── Google profile ──-│                        │
+   │                           │                        │                        │
+   │                           │  gRPC OAuthSignIn (provider, providerId, ...)   │
+   │                           │───────────────────────────────────────────-────►│
+   │                           │  ◄─────── accessToken + refreshToken ─────-─────│
+   │                           │                        │                        │
+   │                           │  Set refresh_token cookie (httpOnly)            │
+   │                           │  Store accessToken behind one-time code (60s)   │
+   │                           │                        │                        │
+   │  302 → /oauth/callback?code=<hex>                  │                        │
+   │◄──────────────────────────│                        │                        │
+   │                           │                        │                        │
+   │  GET /auth/exchange-code?code=<hex>                │                        │
+   │──────────────────────────►│                        │                        │
+   │  ◄── { accessToken }  ────│                        │                        │
+   │                           │                        │                        │
+```
+
+**Key security details:**
+- **CSRF protection**: The `state` parameter is an HMAC-SHA256-signed token (`timestamp.random.sig`) with a 5-minute TTL. Verification uses `crypto.timingSafeEqual` to prevent timing attacks. No server-side session is required — works across multiple API Gateway instances.
+- **Token delivery**: The access token never appears in a redirect URL. After the callback, it is stored server-side behind a random 32-hex-character code. The frontend exchanges the code via `GET /auth/exchange-code?code=` within 60 seconds (single-use).
+- **Refresh token**: Delivered as an `httpOnly`, `sameSite: lax` cookie — inaccessible to JavaScript.
+
+**Required environment variables for OAuth:**
+
+```env
+GOOGLE_CLIENT_ID=your_google_client_id
+GOOGLE_CLIENT_SECRET=your_google_client_secret
+GOOGLE_OAUTH_STATE_SECRET=your_hmac_state_secret
+BACKEND_URL=https://api.yourdomain.com
+FRONTEND_URL=https://yourdomain.com
+```
+
+The Google OAuth callback URL to register in Google Cloud Console:
+```
+{BACKEND_URL}/auth/google/callback
+```
 
 ### Custom Decorators
 

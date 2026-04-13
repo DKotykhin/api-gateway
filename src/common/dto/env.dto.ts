@@ -39,6 +39,10 @@ export class EnvironmentVariables {
   @IsNotEmpty()
   readonly JWT_ACCESS_SECRET: string;
 
+  @IsString()
+  @IsNotEmpty()
+  readonly GOOGLE_OAUTH_STATE_SECRET: string;
+
   @IsUrl({ protocols: ['amqp', 'amqps'], require_tld: false }, { message: 'RABBITMQ_URL must be a valid AMQP URL' })
   @IsNotEmpty()
   readonly RABBITMQ_URL: string;

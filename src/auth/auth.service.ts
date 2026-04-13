@@ -6,6 +6,7 @@ import {
   AUTH_SERVICE_NAME,
   type AuthResponse,
   type AuthServiceClient,
+  type OAuthSignInRequest,
   type RefreshTokensResponse,
   type SignInRequest,
   type SignUpRequest,
@@ -120,5 +121,15 @@ export class AuthService implements OnModuleInit {
     return this.authService
       .signOutAllDevices({ id })
       .pipe(this.metricsService.trackGrpcCall(TARGET_SERVICE, 'signOutAllDevices'));
+  }
+
+  oauthSignIn(data: OAuthSignInRequest): Observable<AuthResponse> {
+    this.logger.log(`OAuth sign in for provider: ${data.provider}, providerId: ${data.providerId}`);
+    return this.authService
+      .oAuthSignIn(data)
+      .pipe(
+        this.metricsService.trackGrpcCall(TARGET_SERVICE, 'oAuthSignIn'),
+        this.metricsService.trackAuthAttempt('oauth_signin'),
+      );
   }
 }

@@ -287,6 +287,59 @@ export class AuthController {
     }
   }
 
+  // GitHub OAuth - Initiate
+  @Get('github')
+  @UseGuards(AuthGuard('github'))
+  @ApiOperation({
+    summary: 'GitHub OAuth Login',
+    description: 'Redirects the user to GitHub for authentication',
+  })
+  @ApiResponse({ status: 302, description: 'Redirects to GitHub OAuth consent screen' })
+  public githubLogin(): void {
+    // Passport redirects to GitHub automatically
+  }
+
+  // GitHub OAuth - Callback
+  @Get('github/callback')
+  @UseGuards(AuthGuard('github'))
+  @ApiOperation({
+    summary: 'GitHub OAuth Callback',
+    description: 'Handles the callback from GitHub after authentication',
+  })
+  @ApiResponse({ status: 302, description: 'Redirects to frontend with a one-time exchange code' })
+  public async githubCallback(@Req() req: Request, @Res() res: Response): Promise<void> {
+    const frontendUrl = this.configService.getOrThrow<string>('FRONTEND_URL');
+    try {
+      const profile = req['user'] as {
+        provider: string;
+        providerId: string;
+        email?: string;
+        name?: string;
+        avatarUrl?: string | null;
+        accessToken: string;
+        refreshToken?: string | null;
+      };
+      this.logger.debug(
+        `GitHub OAuth callback received for provider ID: ${profile.providerId}, email: ${profile.email}, name: ${profile.name}`,
+      );
+      const clientInfo = {
+        ipAddress: this.getClientIp(req),
+        userAgent: req.headers['user-agent'] || 'Unknown',
+      };
+      const response = await firstValueFrom(this.authService.oauthSignIn({ ...profile, clientInfo }));
+      this.setRefreshTokenCookie(res, response.refreshToken);
+
+      const code = crypto.randomBytes(16).toString('hex');
+      this.oauthCodes.set(code, { accessToken: response.accessToken, expiresAt: Date.now() + 60_000 });
+      setTimeout(() => this.oauthCodes.delete(code), 60_000);
+
+      res.redirect(`${frontendUrl}/oauth/callback?code=${code}`);
+    } catch (error) {
+      this.logger.error(`GitHub OAuth callback failed: ${error instanceof Error ? error.message : error}`);
+      res.redirect(`${frontendUrl}/oauth/error`);
+    }
+  }
+
   // Google OAuth - Exchange one-time code for access token
   @Get('exchange-code')
   @ApiOperation({

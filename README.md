@@ -6,6 +6,8 @@
 ![gRPC](https://img.shields.io/badge/gRPC-244C5A?style=flat&logo=google&logoColor=white)
 ![RabbitMQ](https://img.shields.io/badge/RabbitMQ-FF6600?style=flat&logo=rabbitmq&logoColor=white)
 ![JWT](https://img.shields.io/badge/JWT-000000?style=flat&logo=jsonwebtokens&logoColor=white)
+![Google OAuth](https://img.shields.io/badge/Google_OAuth-4285F4?style=flat&logo=google&logoColor=white)
+![GitHub OAuth](https://img.shields.io/badge/GitHub_OAuth-181717?style=flat&logo=github&logoColor=white)
 ![Swagger](https://img.shields.io/badge/Swagger-85EA2D?style=flat&logo=swagger&logoColor=black)
 ![Prometheus](https://img.shields.io/badge/Prometheus-E6522C?style=flat&logo=prometheus&logoColor=white)
 ![OpenTelemetry](https://img.shields.io/badge/OpenTelemetry-7B61FF?style=flat&logo=opentelemetry&logoColor=white)
@@ -142,7 +144,9 @@ docker-compose up
 | POST | `/auth/logout-all-devices` | JWT | Sign out all sessions |
 | GET | `/auth/google` | No | Redirect to Google OAuth consent screen |
 | GET | `/auth/google/callback` | No | Google OAuth callback (internal — handled by Passport) |
-| GET | `/auth/exchange-code?code=` | No | Exchange one-time code for access token |
+| GET | `/auth/github` | No | Redirect to GitHub OAuth consent screen |
+| GET | `/auth/github/callback` | No | GitHub OAuth callback (internal — handled by Passport) |
+| GET | `/auth/exchange-code?code=` | No | Exchange one-time code for access token (Google & GitHub) |
 
 ### User (`/user`)
 
@@ -268,27 +272,28 @@ docker-compose up
 - Access tokens via `Authorization: Bearer <token>` header
 - Refresh tokens via HTTP-only cookies
 
-### Google OAuth Flow
+### Google & GitHub OAuth Flow
 
-The OAuth flow uses a short-lived one-time code pattern to avoid exposing the access token in URL query parameters (prevents server log / Referer leakage).
+Both providers share the same flow and the same `GET /auth/exchange-code` endpoint. The flow uses a short-lived one-time code pattern to avoid exposing the access token in URL query parameters (prevents server log / Referer leakage).
 
 ```
-Browser                    API Gateway               Google               User Microservice
+Browser                    API Gateway               Provider             User Microservice
    │                           │                        │                        │
    │  GET /auth/google         │                        │                        │
+   │  (or /auth/github)        │                        │                        │
    │──────────────────────────►│                        │                        │
-   │                           │  Redirect to Google    │                        │
+   │                           │  Redirect to Provider  │                        │
    │◄──────────────────────────│  (HMAC-signed state)   │                        │
    │                           │                        │                        │
    │  User consents            │                        │                        │
    │────────────────────────────────────────────────-──►│                        │
    │                           │                        │                        │
-   │  GET /auth/google/callback?code=...&state=...      │                        │
+   │  GET /auth/<provider>/callback?code=...&state=...  │                        │
    │──────────────────────────►│                        │                        │
    │                           │  Verify HMAC state     │                        │
    │                           │  Exchange code         │                        │
    │                           │────────────────────-─► │                        │
-   │                           │  ◄── Google profile ──-│                        │
+   │                           │  ◄── Profile ─────────-│                        │
    │                           │                        │                        │
    │                           │  gRPC OAuthSignIn (provider, providerId, ...)   │
    │                           │───────────────────────────────────────────-────►│
@@ -310,20 +315,30 @@ Browser                    API Gateway               Google               User M
 - **CSRF protection**: The `state` parameter is an HMAC-SHA256-signed token (`timestamp.random.sig`) with a 5-minute TTL. Verification uses `crypto.timingSafeEqual` to prevent timing attacks. No server-side session is required — works across multiple API Gateway instances.
 - **Token delivery**: The access token never appears in a redirect URL. After the callback, it is stored server-side behind a random 32-hex-character code. The frontend exchanges the code via `GET /auth/exchange-code?code=` within 60 seconds (single-use).
 - **Refresh token**: Delivered as an `httpOnly`, `sameSite: lax` cookie — inaccessible to JavaScript.
+- **Separate state secrets**: Each provider uses its own HMAC secret (`GOOGLE_OAUTH_STATE_SECRET`, `GITHUB_OAUTH_STATE_SECRET`) so a leaked secret for one provider cannot compromise the other.
 
 **Required environment variables for OAuth:**
 
 ```env
-GOOGLE_CLIENT_ID=your_google_client_id
-GOOGLE_CLIENT_SECRET=your_google_client_secret
-GOOGLE_OAUTH_STATE_SECRET=your_hmac_state_secret
+# Shared
 BACKEND_URL=https://api.yourdomain.com
 FRONTEND_URL=https://yourdomain.com
+
+# Google
+GOOGLE_CLIENT_ID=your_google_client_id
+GOOGLE_CLIENT_SECRET=your_google_client_secret
+GOOGLE_OAUTH_STATE_SECRET=your_google_hmac_state_secret
+
+# GitHub
+GITHUB_CLIENT_ID=your_github_client_id
+GITHUB_CLIENT_SECRET=your_github_client_secret
+GITHUB_OAUTH_STATE_SECRET=your_github_hmac_state_secret
 ```
 
-The Google OAuth callback URL to register in Google Cloud Console:
+Callback URLs to register with each provider:
 ```
-{BACKEND_URL}/auth/google/callback
+Google Cloud Console:  {BACKEND_URL}/auth/google/callback
+GitHub OAuth App:      {BACKEND_URL}/auth/github/callback
 ```
 
 ### Custom Decorators

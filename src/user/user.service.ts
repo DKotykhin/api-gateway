@@ -20,6 +20,7 @@ import {
   type UserRoleRequest,
   type UserServiceClient,
 } from 'src/generated-types/user';
+import { CircuitBreakerService } from 'src/supervision/circuit-breaker/circuit-breaker.service';
 import { MetricsService } from 'src/supervision/metrics/metrics.service';
 
 const TARGET_SERVICE = 'user-microservice';
@@ -33,10 +34,18 @@ export class UserService implements OnModuleInit {
     @Inject('USER_CLIENT')
     private readonly userMicroserviceClient: ClientGrpc,
     private readonly metricsService: MetricsService,
+    private readonly circuitBreaker: CircuitBreakerService,
   ) {}
 
   onModuleInit() {
     this.userService = this.userMicroserviceClient.getService<UserServiceClient>(USER_SERVICE_NAME);
+  }
+
+  private call<T>(source: Observable<T>, method: string): Observable<T> {
+    return source.pipe(
+      this.circuitBreaker.protect(TARGET_SERVICE),
+      this.metricsService.trackGrpcCall(TARGET_SERVICE, method),
+    );
   }
 
   getUserById(id: string, currentUserId: string): Observable<User> {
@@ -45,12 +54,12 @@ export class UserService implements OnModuleInit {
       this.logger.warn(`User ID mismatch: requested ID ${id} does not match current user ID ${currentUserId}`);
       throw new BadRequestException('You can only fetch your own user profile.');
     }
-    return this.userService.getUserById({ id }).pipe(this.metricsService.trackGrpcCall(TARGET_SERVICE, 'getUserById'));
+    return this.call(this.userService.getUserById({ id }), 'getUserById');
   }
 
   getAllUsers(data: PaginationMeta): Observable<AllUsersResponse> {
     this.logger.log(`Fetching all users with page: ${data.page}, limit: ${data.limit}`);
-    return this.userService.getAllUsers(data).pipe(this.metricsService.trackGrpcCall(TARGET_SERVICE, 'getAllUsers'));
+    return this.call(this.userService.getAllUsers(data), 'getAllUsers');
   }
 
   updateUser(data: UpdateUserRequest): Observable<User> {
@@ -59,77 +68,61 @@ export class UserService implements OnModuleInit {
       this.logger.warn(`No update fields provided for user ID: ${data.id}`);
       throw new BadRequestException('At least one field (name, phoneNumber) must be provided for update.');
     }
-    return this.userService.updateUser(data).pipe(this.metricsService.trackGrpcCall(TARGET_SERVICE, 'updateUser'));
+    return this.call(this.userService.updateUser(data), 'updateUser');
   }
 
   deleteUser(id: string): Observable<StatusResponse> {
     this.logger.log(`Deleting user with ID: ${id}`);
-    return this.userService.deleteUser({ id }).pipe(this.metricsService.trackGrpcCall(TARGET_SERVICE, 'deleteUser'));
+    return this.call(this.userService.deleteUser({ id }), 'deleteUser');
   }
 
   confirmPassword(data: PasswordRequest): Observable<StatusResponse> {
     this.logger.log(`Confirming password for user ID: ${data.id}`);
-    return this.userService
-      .confirmPassword(data)
-      .pipe(this.metricsService.trackGrpcCall(TARGET_SERVICE, 'confirmPassword'));
+    return this.call(this.userService.confirmPassword(data), 'confirmPassword');
   }
 
   changePassword(data: PasswordRequest): Observable<StatusResponse> {
     this.logger.log(`Changing password for user ID: ${data.id}`);
-    return this.userService
-      .changePassword(data)
-      .pipe(this.metricsService.trackGrpcCall(TARGET_SERVICE, 'changePassword'));
+    return this.call(this.userService.changePassword(data), 'changePassword');
   }
 
   banUser(data: BanUserRequest): Observable<User> {
     this.logger.log(`Banning user with ID: ${data.id}`);
-    return this.userService.banUser(data).pipe(this.metricsService.trackGrpcCall(TARGET_SERVICE, 'banUser'));
+    return this.call(this.userService.banUser(data), 'banUser');
   }
 
   unbanUser(data: BanUserRequest): Observable<User> {
     this.logger.log(`Unbanning user with ID: ${data.id}`);
-    return this.userService.unbanUser(data).pipe(this.metricsService.trackGrpcCall(TARGET_SERVICE, 'unbanUser'));
+    return this.call(this.userService.unbanUser(data), 'unbanUser');
   }
 
   getBannedUsers(): Observable<GetBannedUsersResponse> {
     this.logger.log(`Fetching all banned users`);
-    return this.userService
-      .getBannedUsers({})
-      .pipe(this.metricsService.trackGrpcCall(TARGET_SERVICE, 'getBannedUsers'));
+    return this.call(this.userService.getBannedUsers({}), 'getBannedUsers');
   }
 
   getBanDetailsByUserId(id: string): Observable<BanDetailsResponse> {
     this.logger.log(`Fetching ban details for user ID: ${id}`);
-    return this.userService
-      .getBanDetailsByUserId({ id })
-      .pipe(this.metricsService.trackGrpcCall(TARGET_SERVICE, 'getBanDetailsByUserId'));
+    return this.call(this.userService.getBanDetailsByUserId({ id }), 'getBanDetailsByUserId');
   }
 
   changeUserRole(data: UserRoleRequest): Observable<User> {
     this.logger.log(`Changing role for user ID: ${data.id} to ${UserRole[data.role]}`);
-    return this.userService
-      .changeUserRole(data)
-      .pipe(this.metricsService.trackGrpcCall(TARGET_SERVICE, 'changeUserRole'));
+    return this.call(this.userService.changeUserRole(data), 'changeUserRole');
   }
 
   getDeliveryAddresses(userId: string): Observable<GetDeliveryAddressesResponse> {
     this.logger.log(`Fetching delivery addresses for user ID: ${userId}`);
-    return this.userService
-      .getDeliveryAddresses({ id: userId })
-      .pipe(this.metricsService.trackGrpcCall(TARGET_SERVICE, 'getDeliveryAddresses'));
+    return this.call(this.userService.getDeliveryAddresses({ id: userId }), 'getDeliveryAddresses');
   }
 
   upsertDeliveryAddress(data: UpsertDeliveryAddressRequest): Observable<DeliveryAddress> {
     this.logger.log(`Upserting delivery address for user ID: ${data.userId}`);
-    return this.userService
-      .upsertDeliveryAddress(data)
-      .pipe(this.metricsService.trackGrpcCall(TARGET_SERVICE, 'upsertDeliveryAddress'));
+    return this.call(this.userService.upsertDeliveryAddress(data), 'upsertDeliveryAddress');
   }
 
   deleteDeliveryAddress(addressId: string): Observable<StatusResponse> {
     this.logger.log(`Deleting delivery address with ID: ${addressId}`);
-    return this.userService
-      .deleteDeliveryAddress({ id: addressId })
-      .pipe(this.metricsService.trackGrpcCall(TARGET_SERVICE, 'deleteDeliveryAddress'));
+    return this.call(this.userService.deleteDeliveryAddress({ id: addressId }), 'deleteDeliveryAddress');
   }
 }

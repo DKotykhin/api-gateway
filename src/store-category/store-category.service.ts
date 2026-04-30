@@ -17,18 +17,21 @@ import {
   type StoreCategoryWithTranslations,
   type UpdateStoreCategoryRequest,
 } from 'src/generated-types/store-category';
+import { CircuitBreakerService } from 'src/supervision/circuit-breaker/circuit-breaker.service';
 import { UpsertStoreCategoryTranslationDto } from './dto';
+
+const TARGET_SERVICE = 'store-microservice';
 
 function mapLanguageToGrpcEnum(language: string): number {
   switch (language.toUpperCase()) {
     case 'EN':
-      return 1; // LANGUAGE_EN = 1
+      return 1;
     case 'UA':
-      return 2; // LANGUAGE_UA = 2
+      return 2;
     case 'RU':
-      return 3; // LANGUAGE_RU = 3
+      return 3;
     default:
-      return 1; // Default to English if unknown
+      return 1;
   }
 }
 
@@ -41,6 +44,7 @@ export class StoreCategoryService implements OnModuleInit {
     @Inject('STORE_CATEGORY_CLIENT')
     private readonly storeCategoryMicroserviceClient: ClientGrpc,
     private readonly metricsService: MetricsService,
+    private readonly circuitBreaker: CircuitBreakerService,
   ) {}
 
   onModuleInit() {
@@ -48,67 +52,66 @@ export class StoreCategoryService implements OnModuleInit {
       this.storeCategoryMicroserviceClient.getService<StoreCategoryServiceClient>(STORE_CATEGORY_SERVICE_NAME);
   }
 
+  private call<T>(source: Observable<T>, method: string): Observable<T> {
+    return source.pipe(
+      this.circuitBreaker.protect(TARGET_SERVICE),
+      this.metricsService.trackGrpcCall(TARGET_SERVICE, method),
+    );
+  }
+
   getStoreCategoriesByLanguage(language = 'EN'): Observable<StoreCategoryList> {
     this.logger.log(`Fetching store categories for language: ${language}`);
     const grpcLanguage = mapLanguageToGrpcEnum(language);
-    return this.storeCategoryService
-      .getStoreCategoriesByLanguage({ language: grpcLanguage })
-      .pipe(this.metricsService.trackGrpcCall('store-microservice', 'getStoreCategoriesByLanguage'));
+    return this.call(
+      this.storeCategoryService.getStoreCategoriesByLanguage({ language: grpcLanguage }),
+      'getStoreCategoriesByLanguage',
+    );
   }
 
   getStoreCategoryById(id: string): Observable<StoreCategoryWithTranslations> {
     this.logger.log(`Fetching store category by ID: ${id}`);
-    return this.storeCategoryService
-      .getStoreCategoryById({ id })
-      .pipe(this.metricsService.trackGrpcCall('store-microservice', 'getStoreCategoryById'));
+    return this.call(this.storeCategoryService.getStoreCategoryById({ id }), 'getStoreCategoryById');
   }
 
   createStoreCategory(data: CreateStoreCategoryRequest): Observable<Id> {
     this.logger.log(`Creating store category with data: ${JSON.stringify(data)}`);
-    return this.storeCategoryService
-      .createStoreCategory(data)
-      .pipe(this.metricsService.trackGrpcCall('store-microservice', 'createStoreCategory'));
+    return this.call(this.storeCategoryService.createStoreCategory(data), 'createStoreCategory');
   }
 
   updateStoreCategory(data: UpdateStoreCategoryRequest): Observable<Id> {
     this.logger.log(`Updating store category with data: ${JSON.stringify(data)}`);
-    return this.storeCategoryService
-      .updateStoreCategory(data)
-      .pipe(this.metricsService.trackGrpcCall('store-microservice', 'updateStoreCategory'));
+    return this.call(this.storeCategoryService.updateStoreCategory(data), 'updateStoreCategory');
   }
 
   deleteStoreCategory(id: string): Observable<StatusResponse> {
     this.logger.log(`Deleting store category with ID: ${id}`);
-    return this.storeCategoryService
-      .deleteStoreCategory({ id })
-      .pipe(this.metricsService.trackGrpcCall('store-microservice', 'deleteStoreCategory'));
+    return this.call(this.storeCategoryService.deleteStoreCategory({ id }), 'deleteStoreCategory');
   }
 
   changeStoreCategoryPosition(data: ChangeStoreCategoryPositionRequest): Observable<StoreCategory> {
     this.logger.log(`Changing position of store category with ID: ${data.id} to new position: ${data.sortOrder}`);
-    return this.storeCategoryService
-      .changeStoreCategoryPosition(data)
-      .pipe(this.metricsService.trackGrpcCall('store-microservice', 'changeStoreCategoryPosition'));
+    return this.call(this.storeCategoryService.changeStoreCategoryPosition(data), 'changeStoreCategoryPosition');
   }
 
   upsertStoreCategoryTranslation(data: UpsertStoreCategoryTranslationDto): Observable<Id> {
     this.logger.log(
       `Upserting translation for store category with ID: ${data.categoryId} and language: ${data.language}`,
     );
-    const grpcLanguage = mapLanguageToGrpcEnum(data.language);
     const grpcData: StoreCategoryTranslationRequest = {
       ...data,
-      language: grpcLanguage,
+      language: mapLanguageToGrpcEnum(data.language),
     };
-    return this.storeCategoryService
-      .upsertStoreCategoryTranslation(grpcData)
-      .pipe(this.metricsService.trackGrpcCall('store-microservice', 'upsertStoreCategoryTranslation'));
+    return this.call(
+      this.storeCategoryService.upsertStoreCategoryTranslation(grpcData),
+      'upsertStoreCategoryTranslation',
+    );
   }
 
   deleteStoreCategoryTranslation(id: string): Observable<StatusResponse> {
     this.logger.log(`Deleting translation for store category with translation ID: ${id}`);
-    return this.storeCategoryService
-      .deleteStoreCategoryTranslation({ id })
-      .pipe(this.metricsService.trackGrpcCall('store-microservice', 'deleteStoreCategoryTranslation'));
+    return this.call(
+      this.storeCategoryService.deleteStoreCategoryTranslation({ id }),
+      'deleteStoreCategoryTranslation',
+    );
   }
 }

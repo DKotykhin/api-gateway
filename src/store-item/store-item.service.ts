@@ -25,6 +25,7 @@ import {
 } from 'src/generated-types/store-item';
 
 import { PriceType, Currency } from 'src/common/enums';
+import { CircuitBreakerService } from 'src/supervision/circuit-breaker/circuit-breaker.service';
 import { MetricsService } from 'src/supervision/metrics/metrics.service';
 import {
   AddStoreItemBasePriceDto,
@@ -34,6 +35,8 @@ import {
   UpsertItemAttributeTranslationDto,
   UpsertStoreItemTranslationDto,
 } from './dto';
+
+const TARGET_SERVICE = 'store-microservice';
 
 function mapLanguageToGrpcEnum(language: string): Language {
   switch (language.toUpperCase()) {
@@ -91,6 +94,7 @@ export class StoreItemService implements OnModuleInit {
     @Inject('STORE_ITEM_CLIENT')
     private readonly storeItemMicroserviceClient: ClientGrpc,
     private readonly metricsService: MetricsService,
+    private readonly circuitBreaker: CircuitBreakerService,
   ) {}
 
   onModuleInit() {
@@ -98,28 +102,41 @@ export class StoreItemService implements OnModuleInit {
       this.storeItemMicroserviceClient.getService<StoreItemServiceClient>(STORE_ITEM_SERVICE_NAME);
   }
 
+  private call<T>(source: Observable<T>, method: string): Observable<T> {
+    return source.pipe(
+      this.circuitBreaker.protect(TARGET_SERVICE),
+      this.metricsService.trackGrpcCall(TARGET_SERVICE, method),
+    );
+  }
+
   getStoreItemsByCategoryIdWithOption(categoryId: string, language = 'EN'): Observable<StoreItemListWithOption> {
     this.logger.log(`Fetching store items by category ID: ${categoryId} for language: ${language}`);
-    const grpcLanguage = mapLanguageToGrpcEnum(language);
-    return this.storeItemService
-      .getStoreItemsByCategoryIdWithOption({ categoryId, language: grpcLanguage })
-      .pipe(this.metricsService.trackGrpcCall('store-microservice', 'getStoreItemsByCategoryIdWithOption'));
+    return this.call(
+      this.storeItemService.getStoreItemsByCategoryIdWithOption({
+        categoryId,
+        language: mapLanguageToGrpcEnum(language),
+      }),
+      'getStoreItemsByCategoryIdWithOption',
+    );
   }
 
   getStoreItemsByCategorySlugWithOption(categorySlug: string, language = 'EN'): Observable<StoreItemListWithOption> {
     this.logger.log(`Fetching store items by category slug: ${categorySlug} for language: ${language}`);
-    const grpcLanguage = mapLanguageToGrpcEnum(language);
-    return this.storeItemService
-      .getStoreItemsByCategorySlugWithOption({ categorySlug, language: grpcLanguage })
-      .pipe(this.metricsService.trackGrpcCall('store-microservice', 'getStoreItemsByCategorySlugWithOption'));
+    return this.call(
+      this.storeItemService.getStoreItemsByCategorySlugWithOption({
+        categorySlug,
+        language: mapLanguageToGrpcEnum(language),
+      }),
+      'getStoreItemsByCategorySlugWithOption',
+    );
   }
 
   getStoreItemById(itemId: string, language = 'EN'): Observable<StoreItemWithOption> {
     this.logger.log(`Fetching store item by ID: ${itemId} for language: ${language}`);
-    const grpcLanguage = mapLanguageToGrpcEnum(language);
-    return this.storeItemService
-      .getStoreItemById({ itemId, language: grpcLanguage })
-      .pipe(this.metricsService.trackGrpcCall('store-microservice', 'getStoreItemById'));
+    return this.call(
+      this.storeItemService.getStoreItemById({ itemId, language: mapLanguageToGrpcEnum(language) }),
+      'getStoreItemById',
+    );
   }
 
   createStoreItem(data: CreateStoreItemDto): Observable<Id> {
@@ -128,9 +145,7 @@ export class StoreItemService implements OnModuleInit {
       ...data,
       expectedDate: data.expectedDate ? new Date(data.expectedDate) : undefined,
     };
-    return this.storeItemService
-      .createStoreItem(grpcData)
-      .pipe(this.metricsService.trackGrpcCall('store-microservice', 'createStoreItem'));
+    return this.call(this.storeItemService.createStoreItem(grpcData), 'createStoreItem');
   }
 
   updateStoreItem(data: UpdateStoreItemDto): Observable<Id> {
@@ -139,16 +154,12 @@ export class StoreItemService implements OnModuleInit {
       ...data,
       expectedDate: data.expectedDate ? new Date(data.expectedDate) : undefined,
     };
-    return this.storeItemService
-      .updateStoreItem(grpcData)
-      .pipe(this.metricsService.trackGrpcCall('store-microservice', 'updateStoreItem'));
+    return this.call(this.storeItemService.updateStoreItem(grpcData), 'updateStoreItem');
   }
 
   deleteStoreItem(id: string): Observable<StatusResponse> {
     this.logger.log(`Deleting store item with ID: ${id}`);
-    return this.storeItemService
-      .deleteStoreItem({ id })
-      .pipe(this.metricsService.trackGrpcCall('store-microservice', 'deleteStoreItem'));
+    return this.call(this.storeItemService.deleteStoreItem({ id }), 'deleteStoreItem');
   }
 
   upsertStoreItemTranslation(data: UpsertStoreItemTranslationDto): Observable<Id> {
@@ -157,58 +168,42 @@ export class StoreItemService implements OnModuleInit {
       ...data,
       language: mapLanguageToGrpcEnum(data.language),
     };
-    return this.storeItemService
-      .upsertStoreItemTranslation(grpcData)
-      .pipe(this.metricsService.trackGrpcCall('store-microservice', 'upsertStoreItemTranslation'));
+    return this.call(this.storeItemService.upsertStoreItemTranslation(grpcData), 'upsertStoreItemTranslation');
   }
 
   deleteStoreItemTranslation(id: string): Observable<StatusResponse> {
     this.logger.log(`Deleting translation for store item with translation ID: ${id}`);
-    return this.storeItemService
-      .deleteStoreItemTranslation({ id })
-      .pipe(this.metricsService.trackGrpcCall('store-microservice', 'deleteStoreItemTranslation'));
+    return this.call(this.storeItemService.deleteStoreItemTranslation({ id }), 'deleteStoreItemTranslation');
   }
 
   addStoreItemImage(data: AddStoreItemImageRequest): Observable<Id> {
     this.logger.log(`Adding image to store item with ID: ${data.itemId}`);
-    return this.storeItemService
-      .addStoreItemImage(data)
-      .pipe(this.metricsService.trackGrpcCall('store-microservice', 'addStoreItemImage'));
+    return this.call(this.storeItemService.addStoreItemImage(data), 'addStoreItemImage');
   }
 
   removeStoreItemImage(id: string): Observable<StatusResponse> {
     this.logger.log(`Removing image with ID: ${id}`);
-    return this.storeItemService
-      .removeStoreItemImage({ id })
-      .pipe(this.metricsService.trackGrpcCall('store-microservice', 'removeStoreItemImage'));
+    return this.call(this.storeItemService.removeStoreItemImage({ id }), 'removeStoreItemImage');
   }
 
   changeStoreItemImagePosition(data: ChangeStoreItemImagePositionRequest): Observable<Id> {
     this.logger.log(`Changing position of image with ID: ${data.imageId} to sort order: ${data.sortOrder}`);
-    return this.storeItemService
-      .changeStoreItemImagePosition(data)
-      .pipe(this.metricsService.trackGrpcCall('store-microservice', 'changeStoreItemImagePosition'));
+    return this.call(this.storeItemService.changeStoreItemImagePosition(data), 'changeStoreItemImagePosition');
   }
 
   changeStoreItemPosition(data: ChangeStoreItemPositionRequest): Observable<StoreItemWithOption> {
     this.logger.log(`Changing position of store item with ID: ${data.itemId} to sort order: ${data.sortOrder}`);
-    return this.storeItemService
-      .changeStoreItemPosition(data)
-      .pipe(this.metricsService.trackGrpcCall('store-microservice', 'changeStoreItemPosition'));
+    return this.call(this.storeItemService.changeStoreItemPosition(data), 'changeStoreItemPosition');
   }
 
   addStoreItemVariant(data: AddStoreItemVariantRequest): Observable<Id> {
     this.logger.log(`Adding variant with attribute ID: ${data.attributeId} to store item with ID: ${data.itemId}`);
-    return this.storeItemService
-      .addStoreItemVariant(data)
-      .pipe(this.metricsService.trackGrpcCall('store-microservice', 'addStoreItemVariant'));
+    return this.call(this.storeItemService.addStoreItemVariant(data), 'addStoreItemVariant');
   }
 
   removeStoreItemVariant(id: string): Observable<StatusResponse> {
     this.logger.log(`Removing variant with ID: ${id}`);
-    return this.storeItemService
-      .removeStoreItemVariant({ id })
-      .pipe(this.metricsService.trackGrpcCall('store-microservice', 'removeStoreItemVariant'));
+    return this.call(this.storeItemService.removeStoreItemVariant({ id }), 'removeStoreItemVariant');
   }
 
   upsertItemAttributeTranslation(data: UpsertItemAttributeTranslationDto): Observable<Id> {
@@ -219,9 +214,7 @@ export class StoreItemService implements OnModuleInit {
       ...data,
       language: mapLanguageToGrpcEnum(data.language),
     };
-    return this.storeItemService
-      .upsertItemAttributeTranslation(grpcData)
-      .pipe(this.metricsService.trackGrpcCall('store-microservice', 'upsertItemAttributeTranslation'));
+    return this.call(this.storeItemService.upsertItemAttributeTranslation(grpcData), 'upsertItemAttributeTranslation');
   }
 
   addVariantPrice(data: AddVariantPriceDto): Observable<Id> {
@@ -231,16 +224,12 @@ export class StoreItemService implements OnModuleInit {
       priceType: mapPriceTypeToGrpcEnum(data.priceType),
       currency: data.currency ? mapCurrencyToGrpcEnum(data.currency) : undefined,
     };
-    return this.storeItemService
-      .addVariantPrice(grpcData)
-      .pipe(this.metricsService.trackGrpcCall('store-microservice', 'addVariantPrice'));
+    return this.call(this.storeItemService.addVariantPrice(grpcData), 'addVariantPrice');
   }
 
   removeVariantPrice(id: string): Observable<StatusResponse> {
     this.logger.log(`Removing variant price with ID: ${id}`);
-    return this.storeItemService
-      .removeVariantPrice({ id })
-      .pipe(this.metricsService.trackGrpcCall('store-microservice', 'removeVariantPrice'));
+    return this.call(this.storeItemService.removeVariantPrice({ id }), 'removeVariantPrice');
   }
 
   addStoreItemBasePrice(data: AddStoreItemBasePriceDto): Observable<Id> {
@@ -250,15 +239,11 @@ export class StoreItemService implements OnModuleInit {
       priceType: mapPriceTypeToGrpcEnum(data.priceType),
       currency: data.currency ? mapCurrencyToGrpcEnum(data.currency) : undefined,
     };
-    return this.storeItemService
-      .addStoreItemBasePrice(grpcData)
-      .pipe(this.metricsService.trackGrpcCall('store-microservice', 'addStoreItemBasePrice'));
+    return this.call(this.storeItemService.addStoreItemBasePrice(grpcData), 'addStoreItemBasePrice');
   }
 
   removeStoreItemBasePrice(id: string): Observable<StatusResponse> {
     this.logger.log(`Removing base price with ID: ${id}`);
-    return this.storeItemService
-      .removeStoreItemBasePrice({ id })
-      .pipe(this.metricsService.trackGrpcCall('store-microservice', 'removeStoreItemBasePrice'));
+    return this.call(this.storeItemService.removeStoreItemBasePrice({ id }), 'removeStoreItemBasePrice');
   }
 }

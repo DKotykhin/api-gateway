@@ -26,6 +26,7 @@ Central entry point for microservices ecosystem. This service handles authentica
 - **Message Queue**: RabbitMQ (for async notifications)
 - **Authentication**: JWT with Passport.js
 - **Observability**: Prometheus metrics + OpenTelemetry/Jaeger tracing
+- **Resilience**: Circuit breaker via cockatiel
 - **API Documentation**: Swagger/OpenAPI
 
 ## Project Structure
@@ -44,7 +45,8 @@ api-gateway/
 │   ├── health-check/            # Microservices health monitoring
 │   ├── supervision/
 │   │   ├── metrics/             # Prometheus metrics collection
-│   │   └── tracing/             # OpenTelemetry/Jaeger tracing
+│   │   ├── tracing/             # OpenTelemetry/Jaeger tracing
+│   │   └── circuit-breaker/     # Circuit breaker (cockatiel)
 │   ├── transport/
 │   │   └── message-broker/      # RabbitMQ integration
 │   ├── common/                  # Shared DTOs and enums
@@ -262,7 +264,8 @@ docker-compose up
 
 | Method | Endpoint | Auth | Description |
 |--------|----------|------|-------------|
-| GET | `/health-check` | No | Check all microservices status |
+| GET | `/health-check/all-apps` | No | Check all microservices status |
+| GET | `/health-check/circuit-breakers` | No | Circuit breaker states per service |
 | GET | `/metrics` | No | Prometheus metrics |
 | GET | `/docs` | No | Swagger API documentation |
 
@@ -373,12 +376,84 @@ Available at `GET /metrics`:
 - `errors_total` - Total errors in routes
 - `grpc_client_duration_seconds` - Duration of gRPC requests
 - `grpc_client_requests_total` - Total gRPC requests
+- `circuit_breaker_state` - Circuit state per service (0 = Closed, 1 = HalfOpen, 2 = Open)
 
 Labels: `service`, `method`, `route`, `status_code`
 
 ### Distributed Tracing
 
 OpenTelemetry integration with Jaeger exporter for request tracing across microservices.
+
+## Circuit Breaker
+
+All gRPC calls are protected by a circuit breaker (`cockatiel` library) to prevent cascading failures when a downstream service is unavailable.
+
+### How It Works
+
+Each downstream service has its own independent circuit breaker with three states:
+
+```
+Normal traffic          5 consecutive failures      After 10s delay
+─────────────           ──────────────────────      ──────────────────
+CLOSED                  OPEN                        HALF-OPEN
+All requests flow  →    Requests fail instantly  →  One test request sent
+                        (no hanging threads)         ✓ success → CLOSED
+                                                     ✗ failure → OPEN
+```
+
+When the circuit is **Open**, the gateway returns `503 Service Unavailable` immediately with the message `<service-name> is currently unavailable`, instead of waiting for a TCP timeout on every request.
+
+### Configuration
+
+| Parameter | Value | Description |
+|---|---|---|
+| Failure threshold | 5 consecutive errors | Opens circuit after this many failures in a row |
+| Half-open delay | 10 seconds | Time before sending a test request |
+| Scope | Per downstream service | One breaker per service, shared across all its methods |
+
+### Usage in Services
+
+Apply `protect()` before metrics tracking in every service file:
+
+```typescript
+return this.grpcService.someMethod(data).pipe(
+  this.circuitBreaker.protect('service-name'),     // fail fast if circuit is open
+  this.metricsService.trackGrpcCall('service-name', 'methodName'),
+);
+```
+
+### Checking Circuit State
+
+```bash
+GET /health-check/circuit-breakers
+```
+
+Example responses:
+
+```json
+// All services running normally
+{
+  "menu-microservice": "Closed",
+  "store-microservice": "Closed",
+  "user-microservice": "Closed"
+}
+
+// Menu service is down (after 5 failures)
+{
+  "menu-microservice": "Open",
+  "store-microservice": "Closed",
+  "user-microservice": "Closed"
+}
+
+// Menu service recovering (10s after opening)
+{
+  "menu-microservice": "HalfOpen",
+  "store-microservice": "Closed",
+  "user-microservice": "Closed"
+}
+```
+
+Circuit state is also exposed as a Prometheus gauge (`circuit_breaker_state`) for Grafana dashboards.
 
 ## Error Handling
 

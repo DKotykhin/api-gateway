@@ -1,13 +1,17 @@
 import { Controller, Get, Logger } from '@nestjs/common';
 import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 
+import { CircuitBreakerService } from 'src/supervision/circuit-breaker/circuit-breaker.service';
 import { AllAppsResponse, HealthCheckService } from './health-check.service';
 
 @ApiTags('health-check')
 @Controller('health-check')
 export class HealthCheckController {
   private readonly logger = new Logger(HealthCheckController.name);
-  constructor(private readonly healthCheckService: HealthCheckService) {}
+  constructor(
+    private readonly healthCheckService: HealthCheckService,
+    private readonly circuitBreakerService: CircuitBreakerService,
+  ) {}
 
   @Get('all-apps')
   @ApiOperation({
@@ -127,5 +131,14 @@ export class HealthCheckController {
   async checkMenuConnections() {
     this.logger.log('Menu microservice connections check requested at API Gateway');
     return this.healthCheckService.checkMenuMicroserviceConnections();
+  }
+
+  @Get('circuit-breakers')
+  @ApiOperation({
+    summary: 'Circuit breaker states',
+    description: 'Returns the current state of all circuit breakers (Closed / Open / HalfOpen)',
+  })
+  getCircuitBreakers(): Record<string, string> {
+    return this.circuitBreakerService.getStates();
   }
 }

@@ -15,6 +15,7 @@ import {
   type StatusResponse,
   type UpdateMenuCategoryTranslationRequest,
 } from 'src/generated-types/menu-category';
+import { CircuitBreakerService } from 'src/supervision/circuit-breaker/circuit-breaker.service';
 import { MetricsService } from 'src/supervision/metrics/metrics.service';
 import { UpdateMenuCategoryDto } from './dto/update-menu-category.dto';
 
@@ -29,6 +30,7 @@ export class MenuCategoryService implements OnModuleInit {
     @Inject('MENU_CATEGORY_CLIENT')
     private readonly menuCategoryMicroserviceClient: ClientGrpc,
     private readonly metricsService: MetricsService,
+    private readonly circuitBreaker: CircuitBreakerService,
   ) {}
 
   onModuleInit() {
@@ -36,73 +38,63 @@ export class MenuCategoryService implements OnModuleInit {
       this.menuCategoryMicroserviceClient.getService<MenuCategoryServiceClient>(MENU_CATEGORY_SERVICE_NAME);
   }
 
+  private call<T>(source: Observable<T>, method: string): Observable<T> {
+    return source.pipe(
+      this.circuitBreaker.protect(TARGET_SERVICE),
+      this.metricsService.trackGrpcCall(TARGET_SERVICE, method),
+    );
+  }
+
   getFullMenuByLanguage(language = 'EN'): Observable<FullMenuResponse> {
     this.logger.log(`Fetching full menu for language: ${language}`);
-    return this.menuCategoryService
-      .getFullMenuByLanguage({ language })
-      .pipe(this.metricsService.trackGrpcCall(TARGET_SERVICE, 'getFullMenuByLanguage'));
+    return this.call(this.menuCategoryService.getFullMenuByLanguage({ language }), 'getFullMenuByLanguage');
   }
 
   getMenuCategoriesByLanguage(language = 'EN'): Observable<MenuCategoryListWithTranslation> {
     this.logger.log(`Fetching menu categories for language: ${language}`);
-    return this.menuCategoryService
-      .getMenuCategoriesByLanguage({ language })
-      .pipe(this.metricsService.trackGrpcCall(TARGET_SERVICE, 'getMenuCategoriesByLanguage'));
+    return this.call(this.menuCategoryService.getMenuCategoriesByLanguage({ language }), 'getMenuCategoriesByLanguage');
   }
 
   getMenuCategoryById(id: string): Observable<MenuCategoryWithTranslation> {
     this.logger.log(`Fetching menu category by ID: ${id}`);
-    return this.menuCategoryService
-      .getMenuCategoryById({ id })
-      .pipe(this.metricsService.trackGrpcCall(TARGET_SERVICE, 'getMenuCategoryById'));
+    return this.call(this.menuCategoryService.getMenuCategoryById({ id }), 'getMenuCategoryById');
   }
 
   createMenuCategory(data: CreateMenuCategoryRequest): Observable<MenuCategory> {
     this.logger.log(`Creating menu category with data: ${JSON.stringify(data)}`);
-    return this.menuCategoryService
-      .createMenuCategory(data)
-      .pipe(this.metricsService.trackGrpcCall(TARGET_SERVICE, 'createMenuCategory'));
+    return this.call(this.menuCategoryService.createMenuCategory(data), 'createMenuCategory');
   }
 
   updateMenuCategory(id: string, data: UpdateMenuCategoryDto): Observable<MenuCategory> {
     this.logger.log(`Updating menu category with ID: ${id} and data: ${JSON.stringify(data)}`);
-    return this.menuCategoryService
-      .updateMenuCategory({ id, ...data })
-      .pipe(this.metricsService.trackGrpcCall(TARGET_SERVICE, 'updateMenuCategory'));
+    return this.call(this.menuCategoryService.updateMenuCategory({ id, ...data }), 'updateMenuCategory');
   }
 
   changeMenuCategoryPosition(id: string, position: number): Observable<MenuCategory> {
     this.logger.log(`Changing position of menu category ID: ${id} to position: ${position}`);
-    return this.menuCategoryService
-      .changeMenuCategoryPosition({ id, position })
-      .pipe(this.metricsService.trackGrpcCall(TARGET_SERVICE, 'changeMenuCategoryPosition'));
+    return this.call(
+      this.menuCategoryService.changeMenuCategoryPosition({ id, position }),
+      'changeMenuCategoryPosition',
+    );
   }
 
   deleteMenuCategory(id: string): Observable<StatusResponse> {
     this.logger.log(`Deleting menu category with ID: ${id}`);
-    return this.menuCategoryService
-      .deleteMenuCategory({ id })
-      .pipe(this.metricsService.trackGrpcCall(TARGET_SERVICE, 'deleteMenuCategory'));
+    return this.call(this.menuCategoryService.deleteMenuCategory({ id }), 'deleteMenuCategory');
   }
 
   createMenuCategoryTranslation(data: CreateMenuCategoryTranslationRequest): Observable<MenuCategoryTranslation> {
     this.logger.log(`Creating menu category translation with data: ${JSON.stringify(data)}`);
-    return this.menuCategoryService
-      .createMenuCategoryTranslation(data)
-      .pipe(this.metricsService.trackGrpcCall(TARGET_SERVICE, 'createMenuCategoryTranslation'));
+    return this.call(this.menuCategoryService.createMenuCategoryTranslation(data), 'createMenuCategoryTranslation');
   }
 
   updateMenuCategoryTranslation(data: UpdateMenuCategoryTranslationRequest): Observable<MenuCategoryTranslation> {
     this.logger.log(`Updating menu category translation with ID: ${data.id} and data: ${JSON.stringify(data)}`);
-    return this.menuCategoryService
-      .updateMenuCategoryTranslation(data)
-      .pipe(this.metricsService.trackGrpcCall(TARGET_SERVICE, 'updateMenuCategoryTranslation'));
+    return this.call(this.menuCategoryService.updateMenuCategoryTranslation(data), 'updateMenuCategoryTranslation');
   }
 
   deleteMenuCategoryTranslation(id: string): Observable<StatusResponse> {
     this.logger.log(`Deleting menu category translation with ID: ${id}`);
-    return this.menuCategoryService
-      .deleteMenuCategoryTranslation({ id })
-      .pipe(this.metricsService.trackGrpcCall(TARGET_SERVICE, 'deleteMenuCategoryTranslation'));
+    return this.call(this.menuCategoryService.deleteMenuCategoryTranslation({ id }), 'deleteMenuCategoryTranslation');
   }
 }

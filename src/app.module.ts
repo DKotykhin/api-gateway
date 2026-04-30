@@ -15,6 +15,7 @@ import { MediaModule } from './media/media.module';
 import { StoreCategoryModule } from './store-category/store-category.module';
 import { StoreAttributeModule } from './store-attribute/store-attribute.module';
 import { StoreItemModule } from './store-item/store-item.module';
+import { CircuitBreakerModule } from './supervision/circuit-breaker/circuit-breaker.module';
 
 @Module({
   imports: [
@@ -38,6 +39,7 @@ import { StoreItemModule } from './store-item/store-item.module';
     StoreCategoryModule,
     StoreAttributeModule,
     StoreItemModule,
+    CircuitBreakerModule,
   ],
   controllers: [],
   providers: [],

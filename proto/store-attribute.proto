@@ -29,7 +29,7 @@ message Id {
 
 // Message representing a status response
 message StatusResponse {
-  bool success = 1;
+  bool   success = 1;
   string message = 2;
 }
 
@@ -45,51 +45,51 @@ message AttributeList {
 
 // Message representing an attribute
 message AttributeResponse {
-  string id = 1;
+  string id          = 1;
   string category_id = 2;
-  string slug = 3;
-  int32 sort_order = 4;
+  string slug        = 3;
+  int32  sort_order  = 4;
 }
 
 // Message representing an attribute with translations
 message AttributeWithTranslations {
-  string id = 1;
-  string category_id = 2;
-  string slug = 3;
-  int32 sort_order = 4;
+  string                                id           = 1;
+  string                                category_id  = 2;
+  string                                slug         = 3;
+  int32                                 sort_order   = 4;
   repeated AttributeTranslationResponse translations = 5;
 }
 
 // Message representing an attribute translation
 message AttributeTranslationResponse {
-  string id = 1;
+  string                 id       = 1;
   store_item.v1.Language language = 2;
-  string name = 3;
+  string                 name     = 3;
 }
 
 // Message for creating a new attribute
 message CreateAttributeRequest {
   string category_id = 1;
-  string slug = 2;
+  string slug        = 2;
 }
 
 // Message for updating an existing attribute
 message UpdateAttributeRequest {
-  string id = 1;
+  string          id   = 1;
   optional string slug = 2;
 }
 
 // Message for changing the position of an attribute
 message ChangeAttributePositionRequest {
-  string id = 1;
-  int32 sort_order = 2;
+  string id         = 1;
+  int32  sort_order = 2;
 }
 
 // Message for creating or updating an attribute translation
 message AttributeTranslationRequest {
-  string attribute_id = 1;
-  store_item.v1.Language language = 2;
-  string name = 3;
+  string                 attribute_id = 1;
+  store_item.v1.Language language     = 2;
+  string                 name         = 3;
 }
 
 // Command to generate TypeScript code with NestJS options, using null for optional fields and Date for timestamps

@@ -9,7 +9,7 @@ service MediaService {
 
   // rpc for uploading avatar file
   rpc UploadAvatar(UploadAvatarRequest) returns (FileUrl) {}
-  
+
   // rpc for deleting avatar file
   rpc DeleteAvatar(FileKey) returns (StatusResponse) {}
 }
@@ -21,12 +21,12 @@ message FileKey {
 
 // UploadAvatarRequest represents the request message for uploading an avatar.
 message UploadAvatarRequest {
-  string id = 1;
-  bytes buffer = 2;
-  string field_name = 3;
+  string id            = 1;
+  bytes  buffer        = 2;
+  string field_name    = 3;
   string original_name = 4;
-  string mime_type = 5;
-  int64 size = 6;
+  string mime_type     = 5;
+  int64  size          = 6;
 }
 
 // FileUrl represents the response message after uploading an avatar.
@@ -41,7 +41,7 @@ message Id {
 
 // Message representing a status response
 message StatusResponse {
-  bool success = 1;
+  bool   success = 1;
   string message = 2;
 }
 

@@ -47,7 +47,12 @@ export class PaymentService implements OnModuleInit {
   createPaymentIntent(userId: string, dto: CreatePaymentIntentDto): Observable<CreatePaymentIntentResponse> {
     this.logger.log(`Creating payment intent for userId: ${userId}, orderId: ${dto.orderId}`);
     return this.call(
-      this.paymentService.createPaymentIntent({ ...dto, userId, metadata: dto.metadata ?? {} }),
+      this.paymentService.createPaymentIntent({
+        ...dto,
+        userId,
+        metadata: dto.metadata ?? {},
+        paymentProvider: dto.paymentProvider ?? '',
+      }),
       'createPaymentIntent',
     );
   }
@@ -55,7 +60,12 @@ export class PaymentService implements OnModuleInit {
   createCheckoutSession(userId: string, dto: CreateCheckoutSessionDto): Observable<CreateCheckoutSessionResponse> {
     this.logger.log(`Creating checkout session for userId: ${userId}, orderId: ${dto.orderId}`);
     return this.call(
-      this.paymentService.createCheckoutSession({ ...dto, userId, metadata: dto.metadata ?? {} }),
+      this.paymentService.createCheckoutSession({
+        ...dto,
+        userId,
+        metadata: dto.metadata ?? {},
+        paymentProvider: dto.paymentProvider ?? '',
+      }),
       'createCheckoutSession',
     );
   }

@@ -21,4 +21,13 @@ export class CreatePaymentIntentDto {
   @IsOptional()
   @IsObject()
   readonly metadata?: Record<string, string>;
+
+  @ApiPropertyOptional({
+    description: 'Payment provider: "stripe" (default) or "paypal"',
+    type: String,
+    enum: ['stripe', 'paypal'],
+  })
+  @IsOptional()
+  @IsString()
+  readonly paymentProvider?: string;
 }

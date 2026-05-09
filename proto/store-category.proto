@@ -36,7 +36,7 @@ message Id {
 
 // Message representing a status response
 message StatusResponse {
-  bool success = 1;
+  bool   success = 1;
   string message = 2;
 }
 
@@ -47,62 +47,62 @@ message StoreCategoryList {
 
 // Message representing a store category
 message StoreCategory {
-  string id = 1;
-  string slug = 2;
-  bool is_available = 3;
-  int32 sort_order = 4;
+  string id           = 1;
+  string slug         = 2;
+  bool   is_available = 3;
+  int32  sort_order   = 4;
 }
 
 // Message representing a store category with translation
 message StoreCategoryWithTranslation {
-  string id = 1;
-  string slug = 2;
-  bool is_available = 3;
-  int32 sort_order = 4;
-  string title = 5;
-  string description = 6;
+  string id           = 1;
+  string slug         = 2;
+  bool   is_available = 3;
+  int32  sort_order   = 4;
+  string title        = 5;
+  string description  = 6;
 }
 
 // Message representing a store category translation
 message StoreCategoryTranslation {
-  string id = 1;
-  string title = 2;
-  string description = 3;
-  store_item.v1.Language language = 4;
+  string                 id          = 1;
+  string                 title       = 2;
+  string                 description = 3;
+  store_item.v1.Language language    = 4;
 }
 
 // Message representing a store category with its translation
 message StoreCategoryWithTranslations {
-  StoreCategory category = 1;
+  StoreCategory                     category    = 1;
   repeated StoreCategoryTranslation translation = 2;
 }
 
 // Message for creating a new store category
 message CreateStoreCategoryRequest {
-  string slug = 1;
-  optional bool is_available = 2;
-  optional int32 sort_order = 3;
+  string         slug         = 1;
+  optional bool  is_available = 2;
+  optional int32 sort_order   = 3;
 }
 
 // Message for updating an existing store category
 message UpdateStoreCategoryRequest {
-  string id = 1;
-  optional string slug = 2;
-  optional bool is_available = 3;
+  string          id           = 1;
+  optional string slug         = 2;
+  optional bool   is_available = 3;
 }
 
 // Message for changing the position of a store category
 message ChangeStoreCategoryPositionRequest {
-  string id = 1;
-  int32 sort_order = 2;
+  string id         = 1;
+  int32  sort_order = 2;
 }
 
 // Message for creating or updating a store category translation
 message StoreCategoryTranslationRequest {
-  string category_id = 1;
-  string title = 2;
-  optional string description = 3;
-  store_item.v1.Language language = 4;
+  string                 category_id = 1;
+  string                 title       = 2;
+  optional string        description = 3;
+  store_item.v1.Language language    = 4;
 }
 
 // Command to generate TypeScript code with NestJS options, using null for optional fields and Date for timestamps

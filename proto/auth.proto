@@ -34,16 +34,16 @@ service AuthService {
 
 // Message for sign up request
 message SignUpRequest {
-  optional string name = 1;
-  string email = 2;
-  string password = 3;
+  optional string name         = 1;
+  string          email        = 2;
+  string          password     = 3;
   optional string phone_number = 4;
 }
 
 // Message for sign in request
 message SignInRequest {
-  string email = 1;
-  string password = 2;
+  string              email       = 1;
+  string              password    = 2;
   optional ClientInfo client_info = 3;
 }
 
@@ -55,20 +55,20 @@ message ClientInfo {
 
 // Message for verify email request
 message VerifyEmailRequest {
-  string token = 1;
+  string              token       = 1;
   optional ClientInfo client_info = 2;
 }
 
 // Message for sigh in / verify email response containing tokens
 message AuthResponse {
-  string access_token = 1;
-  string refresh_token = 2;
-  user.v1.User user = 3;
+  string       access_token  = 1;
+  string       refresh_token = 2;
+  user.v1.User user          = 3;
 }
 
 // Message for refresh tokens response
 message RefreshTokensResponse {
-  string access_token = 1;
+  string access_token  = 1;
   string refresh_token = 2;
 }
 
@@ -84,26 +84,26 @@ message Email {
 
 // Message for setting a new password
 message SetNewPasswordRequest {
-  string token = 1;
+  string token    = 1;
   string password = 2;
 }
 
 // Message for signing out from other devices
 message SignOutRequest {
-  string user_id = 1;
+  string user_id            = 1;
   string current_session_id = 2;
 }
 
 // Message for OAuth sign in request
 message OAuthSignInRequest {
-  string provider = 1;
-  string provider_id = 2;
-  optional string email = 3;
-  optional string name = 4;
-  optional string avatar_url = 5;
-  optional string access_token = 6;
-  optional string refresh_token = 7;
-  optional ClientInfo client_info = 8;
+  string              provider      = 1;
+  string              provider_id   = 2;
+  optional string     email         = 3;
+  optional string     name          = 4;
+  optional string     avatar_url    = 5;
+  optional string     access_token  = 6;
+  optional string     refresh_token = 7;
+  optional ClientInfo client_info   = 8;
 }
 
 // Command to generate TypeScript code with NestJS options, using null for optional fields and Date for timestamps

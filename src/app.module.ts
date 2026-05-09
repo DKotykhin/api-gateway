@@ -19,6 +19,7 @@ import { CircuitBreakerModule } from './supervision/circuit-breaker/circuit-brea
 import { CartModule } from './cart/cart.module';
 import { OrderModule } from './order/order.module';
 import { PaymentModule } from './payment/payment.module';
+import { WishlistModule } from './wishlist/wishlist.module';
 
 @Module({
   imports: [
@@ -46,6 +47,7 @@ import { PaymentModule } from './payment/payment.module';
     CartModule,
     OrderModule,
     PaymentModule,
+    WishlistModule,
   ],
   controllers: [],
   providers: [],

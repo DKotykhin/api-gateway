@@ -37,6 +37,7 @@ api-gateway/
 │   ├── auth/                    # Authentication module (signup, signin, tokens)
 │   ├── user/                    # User profile & admin management
 │   ├── cart/                    # Shopping cart (get, add, update, remove, clear)
+│   ├── wishlist/                # Wishlist (get, add, remove, move to/from cart)
 │   ├── order/                   # Order management (create, list, cancel, refund, admin ops)
 │   ├── menu-category/           # Menu category CRUD operations
 │   ├── menu-item/               # Menu item management
@@ -265,6 +266,16 @@ docker-compose up
 | PATCH | `/cart/update` | JWT | Update quantity of a cart item |
 | DELETE | `/cart/remove` | JWT | Remove a specific item from the cart |
 | DELETE | `/cart/clear` | JWT | Clear all items from the cart |
+
+### Wishlist (`/wishlist`)
+
+| Method | Endpoint | Auth | Description |
+|--------|----------|------|-------------|
+| GET | `/wishlist` | JWT | Get the authenticated user's wishlist |
+| POST | `/wishlist/add` | JWT | Add an item to the wishlist |
+| DELETE | `/wishlist/remove` | JWT | Remove a specific item from the wishlist |
+| POST | `/wishlist/move-to-cart` | JWT | Move an item from the wishlist to the cart |
+| POST | `/wishlist/move-to-wishlist` | JWT | Move an item from the cart to the wishlist |
 
 ### Order (`/order`)
 

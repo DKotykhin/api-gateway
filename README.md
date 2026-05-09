@@ -39,6 +39,7 @@ api-gateway/
 │   ├── cart/                    # Shopping cart (get, add, update, remove, clear)
 │   ├── wishlist/                # Wishlist (get, add, remove, move to/from cart)
 │   ├── order/                   # Order management (create, list, cancel, refund, admin ops)
+│   ├── payment/                 # Payment processing (intents, checkout sessions, refunds)
 │   ├── menu-category/           # Menu category CRUD operations
 │   ├── menu-item/               # Menu item management
 │   ├── store-category/          # Store category management
@@ -71,6 +72,7 @@ api-gateway/
 | Media Microservice | gRPC | File storage operations |
 | Store Microservice | gRPC | Store categories, attributes, and items |
 | Order Microservice | gRPC | Shopping cart and order management |
+| Payment Microservice | gRPC | Payment intents, checkout sessions, refunds |
 | Notification Microservice | RabbitMQ | Email notifications |
 
 ## Environment Variables
@@ -88,6 +90,7 @@ USER_MICROSERVICE_GRPC_URL=0.0.0.0:5002
 MEDIA_MICROSERVICE_GRPC_URL=0.0.0.0:5003
 STORE_MICROSERVICE_GRPC_URL=0.0.0.0:5004
 ORDER_MICROSERVICE_GRPC_URL=0.0.0.0:5005
+PAYMENT_MICROSERVICE_GRPC_URL=0.0.0.0:5006
 
 # Cookie Configuration
 COOKIE_SECRET=your_cookie_secret_key_here
@@ -296,6 +299,25 @@ docker-compose up
 |--------|----------|------|-------------|
 | GET | `/order` | ADMIN/MOD | Get all orders (paginated, filterable) |
 | PATCH | `/order/:id/status` | ADMIN/MOD | Update order status |
+
+### Payment (`/payment`)
+
+#### User Endpoints
+
+| Method | Endpoint | Auth | Description |
+|--------|----------|------|-------------|
+| POST | `/payment/intent` | JWT | Create a Stripe payment intent for an order |
+| POST | `/payment/checkout-session` | JWT | Create a Stripe hosted checkout session for an order |
+| GET | `/payment/my` | JWT | Get paginated payment history for the authenticated user |
+| GET | `/payment/by-order/:orderId` | JWT | Get all payments for a specific order |
+| GET | `/payment/:paymentId` | JWT | Get a single payment by ID |
+
+#### Admin Endpoints
+
+| Method | Endpoint | Auth | Description |
+|--------|----------|------|-------------|
+| POST | `/payment/:paymentId/refund` | ADMIN/MOD | Issue a (partial) refund for a payment |
+| POST | `/payment/:paymentId/cancel` | ADMIN/MOD | Cancel a pending payment |
 
 ### Media (`/media`)
 
@@ -552,8 +574,9 @@ Proto definitions are located in `/proto/`:
 - `store-category.proto` - Store category service
 - `store-attribute.proto` - Store attribute service
 - `store-item.proto` - Store item service
-- `cart.proto` - Shopping cart service
+- `cart.proto` - Shopping cart and wishlist service
 - `order.proto` - Order management service
+- `payment.proto` - Payment processing service
 - `media.proto` - Media service
 - `health-check.proto` - Health check service
 
@@ -567,19 +590,20 @@ Generated TypeScript types are in `src/generated-types/`.
 └─────────────┘                    │   (Port 4004)   │
                                    └────────┬────────┘
                                             │
-              ┌───────────┬───────────┬────┴──────┬───────────┬───────────┬───────────┬───────────┐
-              │           │           │           │           │           │           │           │
-              ▼ gRPC      ▼ gRPC      ▼ gRPC      ▼ gRPC      ▼ gRPC      ▼ RabbitMQ  ▼ gRPC
-     ┌─────────────┐ ┌─────────┐ ┌────────┐ ┌─────────┐ ┌─────────┐ ┌──────────┐ ┌─────────┐
-     │    User     │ │  Menu   │ │ Media  │ │  Store  │ │  Order  │ │ Notify   │ │ Jaeger  │
-     │   Micro     │ │  Micro  │ │ Micro  │ │  Micro  │ │  Micro  │ │  Micro   │ │ Tracing │
-     │  (Port 5002)│ │ (5001)  │ │ (5003) │ │ (5004)  │ │ (5005)  │ │ (Queue)  │ │ (4317)  │
-     └──────┬──────┘ └────┬────┘ └───┬────┘ └────┬────┘ └────┬────┘ └──────────┘ └─────────┘
-            │             │          │           │           │
-            ▼             ▼          ▼           ▼           ▼
-     ┌────────────┐ ┌───────────┐ ┌──────┐ ┌───────────┐ ┌───────────┐
-     │ Postgresql │ │ Postgresql│ │  S3  │ │ Postgresql│ │ Postgresql│
-     └────────────┘ └───────────┘ └──────┘ └───────────┘ └───────────┘
+       ┌─────────┬─────────┬─────────┬──----┴──┬───────-──┬────────-─┬─────────┬─────────┐
+       │         │         │         │         │          │          │         │         │
+       ▼         ▼         ▼         ▼         ▼          ▼          ▼         ▼
+      gRPC      gRPC      gRPC      gRPC      gRPC      gRPC      RabbitMQ    gRPC
+  ┌─────────┐ ┌───────┐ ┌───────┐ ┌───────┐ ┌───────┐ ┌─────────┐ ┌───────┐ ┌───────┐
+  │  User   │ │ Menu  │ │ Media │ │ Store │ │ Order │ │ Payment │ │Notify │ │Jaeger │
+  │  Micro  │ │ Micro │ │ Micro │ │ Micro │ │ Micro │ │  Micro  │ │ Micro │ │Tracing│
+  │ (:5002) │ │(:5001)│ │(:5003)│ │(:5004)│ │(:5005)│ │ (:5006) │ │(Queue)│ │(:4317)│
+  └────┬────┘ └───┬───┘ └───┬───┘ └───┬───┘ └───┬───┘ └────┬────┘ └───────┘ └───────┘
+       │          │         │         │         │          │
+       ▼          ▼         ▼         ▼         ▼          ▼
+  ┌─────────┐ ┌───────┐ ┌───────┐ ┌───────┐ ┌───────-┐ ┌─────────┐
+  │ PG,Redis│ │  PG   │ │  S3   │ │ MSSQL │ │PG,Redis│ │ Stripe  │
+  └─────────┘ └───────┘ └───────┘ └───────┘ └───────-┘ └─────────┘
 ```
 
 ## License

@@ -16,6 +16,9 @@ import { StoreCategoryModule } from './store-category/store-category.module';
 import { StoreAttributeModule } from './store-attribute/store-attribute.module';
 import { StoreItemModule } from './store-item/store-item.module';
 import { CircuitBreakerModule } from './supervision/circuit-breaker/circuit-breaker.module';
+import { CartModule } from './cart/cart.module';
+import { OrderModule } from './order/order.module';
+import { PaymentModule } from './payment/payment.module';
 
 @Module({
   imports: [
@@ -40,6 +43,9 @@ import { CircuitBreakerModule } from './supervision/circuit-breaker/circuit-brea
     StoreAttributeModule,
     StoreItemModule,
     CircuitBreakerModule,
+    CartModule,
+    OrderModule,
+    PaymentModule,
   ],
   controllers: [],
   providers: [],

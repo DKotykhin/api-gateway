@@ -24,6 +24,18 @@ export class EnvironmentVariables {
 
   @IsString()
   @IsNotEmpty()
+  readonly STORE_MICROSERVICE_GRPC_URL: string;
+
+  @IsString()
+  @IsNotEmpty()
+  readonly ORDER_MICROSERVICE_GRPC_URL: string;
+
+  @IsString()
+  @IsNotEmpty()
+  readonly PAYMENT_MICROSERVICE_GRPC_URL: string;
+
+  @IsString()
+  @IsNotEmpty()
   readonly COOKIE_SECRET: string;
 
   @IsUrl({ require_tld: false }, { message: 'COOKIE_DOMAIN must be a valid URL' })

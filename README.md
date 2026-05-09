@@ -36,6 +36,8 @@ api-gateway/
 ├── src/
 │   ├── auth/                    # Authentication module (signup, signin, tokens)
 │   ├── user/                    # User profile & admin management
+│   ├── cart/                    # Shopping cart (get, add, update, remove, clear)
+│   ├── order/                   # Order management (create, list, cancel, refund, admin ops)
 │   ├── menu-category/           # Menu category CRUD operations
 │   ├── menu-item/               # Menu item management
 │   ├── store-category/          # Store category management
@@ -67,6 +69,7 @@ api-gateway/
 | Menu Microservice | gRPC | Menu categories and items |
 | Media Microservice | gRPC | File storage operations |
 | Store Microservice | gRPC | Store categories, attributes, and items |
+| Order Microservice | gRPC | Shopping cart and order management |
 | Notification Microservice | RabbitMQ | Email notifications |
 
 ## Environment Variables
@@ -83,6 +86,7 @@ MENU_MICROSERVICE_GRPC_URL=0.0.0.0:5001
 USER_MICROSERVICE_GRPC_URL=0.0.0.0:5002
 MEDIA_MICROSERVICE_GRPC_URL=0.0.0.0:5003
 STORE_MICROSERVICE_GRPC_URL=0.0.0.0:5004
+ORDER_MICROSERVICE_GRPC_URL=0.0.0.0:5005
 
 # Cookie Configuration
 COOKIE_SECRET=your_cookie_secret_key_here
@@ -251,6 +255,36 @@ docker-compose up
 | DELETE | `/store-item/variant/price/:id` | ADMIN/MOD | Remove variant price |
 | POST | `/store-item/base-price` | ADMIN/MOD | Add base price (non-variant items) |
 | DELETE | `/store-item/base-price/:id` | ADMIN/MOD | Remove base price |
+
+### Cart (`/cart`)
+
+| Method | Endpoint | Auth | Description |
+|--------|----------|------|-------------|
+| GET | `/cart` | JWT | Get the authenticated user's cart |
+| POST | `/cart/add` | JWT | Add an item to the cart |
+| PATCH | `/cart/update` | JWT | Update quantity of a cart item |
+| DELETE | `/cart/remove` | JWT | Remove a specific item from the cart |
+| DELETE | `/cart/clear` | JWT | Clear all items from the cart |
+
+### Order (`/order`)
+
+#### User Endpoints
+
+| Method | Endpoint | Auth | Description |
+|--------|----------|------|-------------|
+| POST | `/order/create` | JWT | Create a new order |
+| GET | `/order/my` | JWT | Get paginated order history for the authenticated user |
+| GET | `/order/:id` | JWT | Get a single order by ID |
+| GET | `/order/:id/history` | JWT | Get the status change history for an order |
+| POST | `/order/:id/cancel` | JWT | Cancel a pending order |
+| POST | `/order/:id/refund` | JWT | Request a refund for an order |
+
+#### Admin Endpoints
+
+| Method | Endpoint | Auth | Description |
+|--------|----------|------|-------------|
+| GET | `/order` | ADMIN/MOD | Get all orders (paginated, filterable) |
+| PATCH | `/order/:id/status` | ADMIN/MOD | Update order status |
 
 ### Media (`/media`)
 
@@ -507,6 +541,8 @@ Proto definitions are located in `/proto/`:
 - `store-category.proto` - Store category service
 - `store-attribute.proto` - Store attribute service
 - `store-item.proto` - Store item service
+- `cart.proto` - Shopping cart service
+- `order.proto` - Order management service
 - `media.proto` - Media service
 - `health-check.proto` - Health check service
 
@@ -520,19 +556,19 @@ Generated TypeScript types are in `src/generated-types/`.
 └─────────────┘                    │   (Port 4004)   │
                                    └────────┬────────┘
                                             │
-              ┌────────────────┬────────────┼────────────┬────────────────┬────────────────┐
-              │                │            │            │                │                │
-              ▼ gRPC           ▼ gRPC       ▼ gRPC       ▼ gRPC           ▼ RabbitMQ      ▼ gRPC
-     ┌───────────────┐ ┌───────────────┐ ┌──────────┐ ┌──────────────┐ ┌──────────────┐ ┌─────────┐
-     │     User      │ │     Menu      │ │  Media   │ │    Store     │ │ Notification │ │ Jaeger  │
-     │ Microservice  │ │ Microservice  │ │  Micro   │ │ Microservice │ │ Microservice │ │ Tracing │
-     │  (Port 5002)  │ │  (Port 5001)  │ │ (5003)   │ │  (Port 5004) │ │   (Queue)    │ │ (4317)  │
-     └───────┬───────┘ └───────┬───────┘ └────┬─────┘ └──────┬───────┘ └──────────────┘ └─────────┘
-             │                 │              │               │
-             ▼                 ▼              ▼               ▼
-     ┌───────────────┐ ┌───────────────┐ ┌──────────┐ ┌───────────────┐
-     │   Postgresql  │ │   Postgresql  │ │  AWS S3  │ │  Postgresql   │
-     └───────────────┘ └───────────────┘ └──────────┘ └───────────────┘
+              ┌───────────┬───────────┬────┴──────┬───────────┬───────────┬───────────┬───────────┐
+              │           │           │           │           │           │           │           │
+              ▼ gRPC      ▼ gRPC      ▼ gRPC      ▼ gRPC      ▼ gRPC      ▼ RabbitMQ  ▼ gRPC
+     ┌─────────────┐ ┌─────────┐ ┌────────┐ ┌─────────┐ ┌─────────┐ ┌──────────┐ ┌─────────┐
+     │    User     │ │  Menu   │ │ Media  │ │  Store  │ │  Order  │ │ Notify   │ │ Jaeger  │
+     │   Micro     │ │  Micro  │ │ Micro  │ │  Micro  │ │  Micro  │ │  Micro   │ │ Tracing │
+     │  (Port 5002)│ │ (5001)  │ │ (5003) │ │ (5004)  │ │ (5005)  │ │ (Queue)  │ │ (4317)  │
+     └──────┬──────┘ └────┬────┘ └───┬────┘ └────┬────┘ └────┬────┘ └──────────┘ └─────────┘
+            │             │          │           │           │
+            ▼             ▼          ▼           ▼           ▼
+     ┌────────────┐ ┌───────────┐ ┌──────┐ ┌───────────┐ ┌───────────┐
+     │ Postgresql │ │ Postgresql│ │  S3  │ │ Postgresql│ │ Postgresql│
+     └────────────┘ └───────────┘ └──────┘ └───────────┘ └───────────┘
 ```
 
 ## License

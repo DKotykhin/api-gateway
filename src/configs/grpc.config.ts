@@ -10,6 +10,9 @@ import { MEDIA_V1_PACKAGE_NAME } from 'src/generated-types/media';
 import { STORE_ATTRIBUTE_V1_PACKAGE_NAME } from 'src/generated-types/store-attribute';
 import { STORE_CATEGORY_V1_PACKAGE_NAME } from 'src/generated-types/store-category';
 import { STORE_ITEM_V1_PACKAGE_NAME } from 'src/generated-types/store-item';
+import { CART_V1_PACKAGE_NAME } from 'src/generated-types/cart';
+import { ORDER_V1_PACKAGE_NAME } from 'src/generated-types/order';
+import { PAYMENT_V1_PACKAGE_NAME } from 'src/generated-types/payment';
 
 export class GrpcConfig {
   static createGrpcClientOptions({
@@ -133,6 +136,33 @@ export class GrpcConfig {
       protoPath: 'proto/store-item.proto',
       packageName: STORE_ITEM_V1_PACKAGE_NAME,
       urlConfigKey: 'STORE_MICROSERVICE_GRPC_URL',
+    });
+  }
+
+  static cartClientOptions(): ClientsProviderAsyncOptions {
+    return GrpcConfig.createGrpcClientOptions({
+      serviceName: 'CART_CLIENT',
+      protoPath: 'proto/cart.proto',
+      packageName: CART_V1_PACKAGE_NAME,
+      urlConfigKey: 'ORDER_MICROSERVICE_GRPC_URL',
+    });
+  }
+
+  static orderClientOptions(): ClientsProviderAsyncOptions {
+    return GrpcConfig.createGrpcClientOptions({
+      serviceName: 'ORDER_CLIENT',
+      protoPath: 'proto/order.proto',
+      packageName: ORDER_V1_PACKAGE_NAME,
+      urlConfigKey: 'ORDER_MICROSERVICE_GRPC_URL',
+    });
+  }
+
+  static paymentClientOptions(): ClientsProviderAsyncOptions {
+    return GrpcConfig.createGrpcClientOptions({
+      serviceName: 'PAYMENT_CLIENT',
+      protoPath: 'proto/payment.proto',
+      packageName: PAYMENT_V1_PACKAGE_NAME,
+      urlConfigKey: 'PAYMENT_MICROSERVICE_GRPC_URL',
     });
   }
 }
